@@ -18,6 +18,22 @@ def add_ks(address):
 	f.close()
 	return data
 
+def rem_ks(name):
+	new_data = ''
+	rem_data = None
+	f = open('ks_list', 'r', encoding='utf-8')
+	for line in f:
+		if name == split('\t', line)[0].strip():
+			rem_data = split('\t', line)[0].strip() + " (" + split('\t', line)[1].strip() + ")"
+			continue
+		new_data += line
+	f.close()
+	if rem_data != None:
+		f = open('ks_list', 'w', encoding='utf-8')
+		f.write(new_data)
+		f.close()
+	return rem_data
+
 def store_data(data):
 	filename = b64encode(data['name'].encode())
 	f = open(filename, 'w', encoding='utf-8')
@@ -142,43 +158,64 @@ def get_updates(address, update_count):
 	# f.close()
 	return
 	
-if __name__ == '__main__':
-	# address = 'https://www.kickstarter.com/projects/1986219362/dies-irae-english-localization-project-commences'
-	# address = 'https://www.kickstarter.com/projects/tokyootakumode/re-sharin-no-kuni-project'
-	# address = 'https://www.kickstarter.com/projects/muvluv/muv-luv-a-pretty-sweet-visual-novel-series'
+def get_data(ks):
+	new = False
+	[name, address] = split('\t', ks)
+	name = name.strip()
+	address = address.strip()
+	ks_data = load_data(name)
 	
-	# data = scrape_data(address)
-	# ks_data = process_data(data)
-	# store_data(ks_data)
+	if ks_data == None:
+		data = scrape_data(address)
+		ks_data = process_data(data)
+		store_data(ks_data)
+		ks_data['updates'] = None
+	elif time() - float(ks_data['time']) > 300:
+		# print("Grabbing new data")
+		old_ks_data = ks_data
+		data = scrape_data(address)
+		ks_data = process_data(data)
+		store_data(ks_data)
+		if ks_data['update_count'] > old_ks_data['update_count']:
+			# print("New updates")
+			ks_data['updates'] = get_updates(address, int(ks_data['update_count']) - int(old_ks_data['update_count']))
+		else:
+			# print("No new updates")
+			ks_data['updates'] = None
+	else:
+		ks_data['updates'] = None
 	
-	# add_ks('http://www.kickstarter.com/projects/1986219362/dies-irae-english-localization-project-commences?ref=nav_search')
+	return ks_data
 	
+def ksstatus(search):
 	f = open('ks_list', 'r', encoding='utf-8')
+	tks = None
 	for ks in f:
-		new = False
 		[name, address] = split('\t', ks)
 		name = name.strip()
 		address = address.strip()
-		ks_data = load_data(name)
-		
-		if ks_data == None:
-			data = scrape_data(address)
-			ks_data = process_data(data)
-			store_data(ks_data)
-			ks_data['updates'] = None
-		elif time() - float(ks_data['time']) > 300:
-			old_ks_data = ks_data
-			data = scrape_data(address)
-			new_ks_data = process_data(data)
-			store_data(new_ks_data)
-			if new_ks_data['update_count'] > ks_data['update_count']:
-				ks_data['updates'] = get_updates(address, int(new_ks_data['update_count']) - int(ks_data['update_count']))
-			else:
-				ks_data['updates'] = None
-			ks_data = new_ks_data
-		else:
-			ks_data['updates'] = None
+		if search.lower() in name.lower():
+			tks = ks
+			break
+	f.close()
+	if tks == None:
+		print("Kickstarter project '" + search + "' not found.")
+		return
+	ks_data = get_data(tks)
+	response = name + ": " + ks_data['pledged'] + " of " + ks_data['goal'] + " goal by " + ks_data['backer_count'] + " backers. Project is " + ks_data['percent'] + " funded. " + address
+	print(response)
+	
+
+if __name__ == '__main__':
+	# add_ks('http://www.kickstarter.com/projects/1986219362/dies-irae-english-localization-project-commences?ref=nav_search')
+	# data = rem_ks('Dies irae English Localization Project Commences!')
+	# print(str(data))
+	# ksstatus("Sharin")
+	f = open('ks_list', 'r', encoding='utf-8')
+	for ks in f:
+		print(ksstatus(split('\t', ks)[0].strip()))
+		# ks_data = get_data(ks)
 			
-		for key in ks_data.keys():
-			print(key + ": " + str(ks_data[key]))
-		print('--------')
+		# for key in ks_data.keys():
+			# print(key + ": " + str(ks_data[key]))
+		# print('--------')
