@@ -6,6 +6,18 @@ from pathlib import Path
 
 AGENT = 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36'
 
+def add_ks(address):
+	blah = match('(https?://www.kickstarter.com/projects/\d+/.+?)(/.+|\?.+)?$', address)
+	if blah == None:
+		return None
+	address = blah.group(1)
+	data = scrape_data(address)
+	data = process_data(data)
+	f = open('ks_list', 'a', encoding='utf-8')
+	f.write(data['name'] + '\t' + address + '\n')
+	f.close()
+	return data
+
 def store_data(data):
 	filename = b64encode(data['name'].encode())
 	f = open(filename, 'w', encoding='utf-8')
@@ -15,20 +27,22 @@ def store_data(data):
 	f.close()
 
 def load_data(name):
-	filename = b64encode(name.encode())
+	filename = b64encode(name.encode()).decode()
 	f = Path(filename)
 	if not f.is_file():
 		return None
 	data = {}
-	key = []
-	value = []
+	keys = []
+	values = []
 	f = open(filename, 'r', encoding='utf-8')
-	time = f.readline()
+	keys.append('time')
+	values.append(f.readline().strip())
 	for line in f:
-		line = split('\t', line)
-		key.append(line[0])
-		value.append(line[1])
-			
+		line = split('\t', line.strip())
+		keys.append(line[0])
+		values.append(line[1])
+	data = dict(zip(keys, values))
+	return data
 
 def scrape_data(address):
 	req = Request(address, headers={'User-Agent': AGENT})
@@ -112,14 +126,59 @@ def process_time(time):
 		return str(time // 24) + 'd' + str(time % 24) + 'h'
 	return str(time) + 'h'
 	
+def get_updates(address, update_count):
+	updates = []
+	data = scrape_data(address + '/updates')
+	for line in data:
+		reg = match('<a class="grid-post link" href="/projects/.+(/posts/\d+)">$', line)
+		if reg != None:
+			updates.append(address + reg.group(1))
+			update_count -= 1
+		if update_count == 0:
+			return updates
+	# f = open('updates', 'w', encoding='utf-8')
+	# for line in data:
+		# f.write(line + '\n')
+	# f.close()
+	return
+	
 if __name__ == '__main__':
 	# address = 'https://www.kickstarter.com/projects/1986219362/dies-irae-english-localization-project-commences'
-	address = 'https://www.kickstarter.com/projects/tokyootakumode/re-sharin-no-kuni-project'
+	# address = 'https://www.kickstarter.com/projects/tokyootakumode/re-sharin-no-kuni-project'
 	# address = 'https://www.kickstarter.com/projects/muvluv/muv-luv-a-pretty-sweet-visual-novel-series'
 	
-	data = scrape_data(address)
-	ks_data = process_data(data)
-	store_data(ks_data)
-
-	for key in ks_data.keys():
-		print(key + ": " + ks_data[key])
+	# data = scrape_data(address)
+	# ks_data = process_data(data)
+	# store_data(ks_data)
+	
+	# add_ks('http://www.kickstarter.com/projects/1986219362/dies-irae-english-localization-project-commences?ref=nav_search')
+	
+	f = open('ks_list', 'r', encoding='utf-8')
+	for ks in f:
+		new = False
+		[name, address] = split('\t', ks)
+		name = name.strip()
+		address = address.strip()
+		ks_data = load_data(name)
+		
+		if ks_data == None:
+			data = scrape_data(address)
+			ks_data = process_data(data)
+			store_data(ks_data)
+			ks_data['updates'] = None
+		elif time() - float(ks_data['time']) > 300:
+			old_ks_data = ks_data
+			data = scrape_data(address)
+			new_ks_data = process_data(data)
+			store_data(new_ks_data)
+			if new_ks_data['update_count'] > ks_data['update_count']:
+				ks_data['updates'] = get_updates(address, int(new_ks_data['update_count']) - int(ks_data['update_count']))
+			else:
+				ks_data['updates'] = None
+			ks_data = new_ks_data
+		else:
+			ks_data['updates'] = None
+			
+		for key in ks_data.keys():
+			print(key + ": " + str(ks_data[key]))
+		print('--------')
