@@ -1,5 +1,5 @@
 from sopel import module
-from ks_scrape import *
+from .ks_scrape import *
 from time import sleep
 from threading import Thread
 from re import match, split
@@ -43,10 +43,10 @@ def ksstatus(bot, trigger):
 	
 @module.commands('addks')
 def addks(bot, trigger):
-	ks_data = add_ks(address)
+	ks_data = add_ks(trigger.group(1))
 	if ks_data == None:
 		return bot.say("Please provide a valid Kickstarter address.")		
-	return bot.say("The kickstarter '" + ks_data['name'] + "' has been added.")
+	return bot.say(ks_data['name'] + "' has been added.")
 	
 @module.commands('remks')
 def remks(bot, trigger):
